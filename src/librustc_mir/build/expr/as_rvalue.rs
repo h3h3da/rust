@@ -130,11 +130,14 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
                 this.cfg
                     .push_assign(block, source_info, &Place::from(result), box_);
 
-                // initialize the box contents:
+                // Initialize the box contents. No scope is needed since the
+                // `Box` is already scheduled to be dropped.
                 unpack!(
                     block = this.into(
                         &this.hir.tcx().mk_place_deref(Place::from(result)),
-                        block, value
+                        None,
+                        block,
+                        value,
                     )
                 );
                 block.and(Rvalue::Use(Operand::Move(Place::from(result))))
@@ -257,14 +260,14 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             ExprKind::Yield { value } => {
                 let value = unpack!(block = this.as_operand(block, scope, value));
                 let resume = this.cfg.start_new_block();
-                let cleanup = this.generator_drop_cleanup();
+                this.generator_drop_cleanup(block);
                 this.cfg.terminate(
                     block,
                     source_info,
                     TerminatorKind::Yield {
                         value: value,
                         resume: resume,
-                        drop: cleanup,
+                        drop: None,
                     },
                 );
                 resume.and(this.unit_rvalue())
